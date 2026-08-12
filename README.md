@@ -8,7 +8,7 @@ Three personas at ascending difficulty. Real objections mined from LiveKit's pri
 docs, and the competitive field (Vapi, Retell, Pipecat, raw OpenAI Realtime). Runs on one
 set of LiveKit credentials, because every model in it goes through LiveKit Inference.
 
-**[Live demo](https://sparring-partner-rosy.vercel.app) · [2-minute Loom](#)** (Loom link goes here)
+**[Live demo](https://sparring-partner-rosy.vercel.app)** — pick a prospect and talk to them.
 
 ---
 
@@ -337,6 +337,6 @@ changeable by whoever owns enablement, without a code review.
 - **Cost is trivial at demo volume,** roughly $0.045 to $0.05 per minute of conversation across
   STT, LLM, and TTS, with TTS as about 60% of it.
 
-Built over a weekend as a working argument for how I'd ramp AEs on a technical product. If it
-is useful, the fastest way to see it is the Loom above, and I'm happy to walk through any of it
-live.
+Built over a weekend as a working argument for how I'd ramp AEs on a technical product. The
+fastest way to judge it is to open the demo, pick the Skeptic, and try to bluff him on latency.
+Happy to walk through any of it live.
