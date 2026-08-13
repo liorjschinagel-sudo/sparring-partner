@@ -1,124 +1,100 @@
 # Sparring Partner
 
-An objection-handling trainer for AEs, built on LiveKit Agents. A rep has a live voice
-conversation with a synthetic prospect who is evaluating LiveKit, then gets a scorecard
-grading how they handled each objection.
+An objection-handling and qualification trainer, built on LiveKit Agents. A rep has a live
+voice conversation with a synthetic prospect evaluating LiveKit, then gets scored on how they
+handled it, with the answer they needed for anything they dropped.
 
-Three personas at ascending difficulty. Real objections mined from LiveKit's pricing page,
-docs, and the competitive field (Vapi, Retell, Pipecat, raw OpenAI Realtime). Runs on one
+Six personas across two modes (three AEs working a deal, three inbound leads to qualify).
+The objections are mined from LiveKit's pricing page, the docs, and the competitive field
+(Vapi, Retell, Pipecat, raw OpenAI Realtime) rather than invented. The whole thing runs on one
 set of LiveKit credentials, because every model in it goes through LiveKit Inference.
 
 **[Live demo](https://sparring-partner-rosy.vercel.app)**. Pick a prospect and talk to them.
 
 ---
 
-## How I'd ramp LiveKit AEs
+## Why this exists
 
-This is the actual point of the repo. The tool below is exhibit A.
+Two reasons, and both are worth saying plainly.
 
-### The problem, stated honestly
+**To show the kind of work I would produce.** Most enablement ships a deck, a certification and
+a wiki page that rots by Q3. I wanted to build the other thing: something a rep opens on a
+Tuesday because it is useful that day, that gets better when the product moves instead of
+staler, and that produces data a manager can coach against. This is one small example of that,
+built end to end rather than described in a doc.
 
-LiveKit is hiring its first enablement lead for a sales team selling deeply technical
-infrastructure in a category that is roughly two years old. That combination breaks the
-normal ramp playbook in three specific ways:
+**To learn the product by building on it.** I am interviewing to enable a team selling LiveKit,
+and reading the docs is a thin substitute for shipping something. Building this is how I found
+out that the Agents API had moved under me (`AgentServer` and `inference.*` postdate anything I
+had read), that Inference collapses five provider keys into one credential, that turn detection
+is semantic and acoustic rather than silence thresholds, that dispatch metadata is how you get
+context to an agent, and that the free tier's real constraint is inference credits (about fifty
+minutes) rather than the thousand session minutes on the pricing page. Those are month-three
+facts that I would rather know in week one.
 
-1. **The product moves faster than the content.** I verified this while building: the
-   Agents Python API I had in my head was wrong, and the current one (`AgentServer`,
-   `@server.rtc_session`, `inference.*`) landed after my training data. Any deck written
-   in Q1 is stale by Q3. A certification program on a moving product trains recall of
-   things that are no longer true.
-2. **The buyers are engineers.** A VP of Engineering does not get handled. He tests you,
-   and he can tell within about ninety seconds whether you know what a jitter buffer is.
-   Slides do not prepare anyone for that.
-3. **The competitive board is crowded and moves weekly.** Vapi, Retell, Pipecat, direct
-   OpenAI Realtime, and "we'll build it ourselves" are all live objections, and the honest
-   answer to several of them starts with a concession.
+The caveat worth naming: I built this without ever sitting in a LiveKit pipeline review. The
+objections are researched, not heard. Some of them are probably not the ones that actually
+cost deals.
 
-Traditional enablement (decks, docs, certifications) tests recall. It does not test whether
-a rep can survive a skeptical VP of Engineering in real time. Manager role-play is the usual
-fix, and it works, but it is expensive, inconsistent between managers, and almost never
-scored against anything written down.
+## Where it fits
 
-### The 30/60/90
+This tool is one cell of how I think about an enablement program. The full mental model:
 
-**Days 1 to 30. Get them dangerous on the product, not on the pitch.**
+**Spanning layers**, because they touch everything below them:
 
-Every rep ships a working voice agent in their first two weeks. Not a demo they watched, one
-they built, deployed, and broke. The bar is low on purpose (a single persona answering
-questions) but the experience is non-negotiable: they will have felt turn detection misfire,
-watched latency get worse when they picked the wrong TTS model, and paid for their own
-inference credits. That is the vocabulary they will use for the next two years.
+- New hire onboarding and ramp
+- A self-maintaining LMS (content that updates from the source rather than from a calendar reminder)
+- A Claude project and skill library
 
-In parallel: the objection bank ([`objection-bank.md`](objection-bank.md)) becomes a living
-document with an owner and a review cadence, not a wiki page that rots. Every claim in it
-carries a source link, and any claim we cannot source gets marked as something to escalate
-rather than assert.
+**The pillars:**
 
-Certification gate at day 30: build and deploy an agent, and pass Tier 1 (the Champion) with
-no bluffs.
+| Anatomy of a sale | Product mastery | Competitive intel | Tech stack | FAQs |
+|---|---|---|---|---|
+| Sales cycle deep dive | Product map | Battle cards | Tool launcher and how to access | Living Q&A |
+| Prospect and broad-based skills | How to demo | CI skills | Tool request form | Drill downs by product, strategy, etc |
+| Objection handling | Resource library (release notes, demo Looms, informed campaigns) | News and heard-from-the-field | | |
+| Asset library and content factory | | Master matrix, stacked against the majors | | |
+| **AE/SDR sparring tool** (this repo) | | | | |
 
-**Days 31 to 60. Reps practice against resistance, on a schedule.**
+**The skill library**, which is where most of a rep's day actually gets faster:
 
-Sparring Partner becomes weekly, not a one-time onboarding exercise. Tier 2 (the Skeptic)
-opens with "we'll just build on the OpenAI Realtime API," which is the objection I would bet
-is most common in the real pipeline, and it is the one where the correct answer requires
-conceding that the Realtime API is genuinely good before differentiating on transport.
+| Skill | What it does |
+|---|---|
+| `/prospect-prep` | Takes a CRM id and builds an actionable checklist and strategy for that prospect, wired to their Slack channel where one exists. Reusable through the cycle, anchored to a specific step (a discovery call, say) |
+| `/prospect-strat` | Takes a CRM id and documents a full-cycle approach for that specific prospect |
+| `/prospect-objection-handle` | Walks an AE or SDR through objections with that prospect's context loaded |
+| `/CI-sweep` | Walks a rep through recent competitive updates that touch their pipe specifically |
+| `/content-factory` | Produces a custom asset for a given cycle step from approved brand assets plus CRM-pulled context |
 
-The scorecards aggregate. If eight of twelve reps score a 2 on "Pipecat is open source and
-free," that is not eight coaching conversations, that is one missing piece of positioning and
-my problem to fix. This is where the tool stops being a training exercise and starts being an
-instrument for reading the team.
+The sparring tool is the starred cell. One of about seventeen, which is the honest scale of the
+thing and the reason I built one properly instead of sketching all of them.
 
-Managers stop running role-play from memory and start doing what they are actually good at:
-reviewing a transcript that has already been scored, and coaching the two moments that matter.
+## What I would actually build
 
-Certification gate at day 60: pass Tier 2, with the latency question escalated rather than
-answered.
+The diagram is a mental model, not a plan. A plan needs things I do not have yet: the objections
+that actually show up on calls, how the team really segments Commercial against Enterprise, where
+reps lose deals rather than where I guess they do, and which questions the SEs are tired of being
+handed. I would expect the first stretch to be mostly listening (call reviews, ride-alongs, and
+asking the two reps who are already good what they do differently), and I would expect this
+diagram to change once I did.
 
-**Days 61 to 90. Make them credible in front of engineers, and make the loop close.**
+If I joined, I would harden this tool rather than rebuild it: auth, a real store, aggregate
+scorecards so a manager can see that nine of twelve reps drop the same objection, and the
+objection bank owned by someone with a review cadence. But it would sit inside the program above
+rather than being the program.
 
-Tier 3 (the Commodity Buyer) runs the full competitive board with a procurement mindset, and
-its win condition is the one I care most about: differentiate without trash-talking anyone,
-quantify value instead of defending price, and know which claims to hand to an SA.
+### Where I would expect this to be wrong
 
-By day 90 a rep should be co-running a technical discovery call with an SA, and the pairing
-should be deliberate: the rep knows exactly which five topics they hand over, because they
-have been scored on those exact handoffs for two months.
+Three things I would want to pressure-test before betting anything real on it:
 
-The loop closes here. Every real call that produces a new objection goes back into
-`objection-bank.md`, which regenerates the personas and the rubric. The training program
-tracks the product because it is version-controlled next to it.
-
-### The one belief underneath all of this
-
-**The most valuable thing you can train into a rep selling technical infrastructure is knowing
-what they don't know, out loud, in front of a buyer.**
-
-That is why escalation judgment is a first-class scored dimension here, and why a rep who
-answers a compliance question correctly from memory is still marked as a miss. The rubric says
-so explicitly:
-
-> A rep who guesses right today guesses wrong next quarter, in a deal that matters, on a claim
-> that ends up in a contract.
-
-Two of the objections in this tool are traps with no correct answer available. LiveKit does not
-publish end-to-end latency benchmarks (I checked, and the docs describe architectural latency
-work without committing to numbers), so a rep who answers "about 300 milliseconds" invented it.
-The Skeptic pushes until it falls apart. That is the lesson, and it is much cheaper to learn
-here than in a deal.
-
-### Where I'd expect this to be wrong
-
-Three things I would want to pressure-test before betting a ramp program on it:
-
-- **Synthetic prospects are softer than real ones in one specific way:** they cannot smell fear,
+- **Synthetic prospects are softer than real ones in one specific way.** They cannot smell fear,
   and they reward a written-down "correct" answer. A rep could learn to satisfy the rubric
   without getting better on live calls. The mitigation is that manager role-play stays in the
-  program, with Sparring Partner as the reps, not the replacement.
+  program, with this as the reps rather than the replacement.
 - **An LLM grader has a confidence bias.** It rewards fluent answers. I wrote explicit
-  counter-instructions into the rubric ("confidence is not competence," "grade the floor, not
-  the ceiling"), and I would want to calibrate those against a set of human-graded transcripts
-  before trusting the numbers at team level.
+  counter-instructions into the rubric ("confidence is not competence", "grade the floor, not
+  the ceiling"), and I would want to calibrate those against human-graded transcripts before
+  trusting the numbers at team level.
 - **The objection bank is only as good as its maintenance.** If nobody owns it, this becomes a
   deck with extra steps in about four months.
 
@@ -365,17 +341,23 @@ changeable by whoever owns enablement, without a code review.
   the SDK ships its own instruction telling coding agents not to trust their training data. I
   pulled model identifiers out of the installed package rather than the docs prose, because the
   docs list model families and the package has the actual strings.
-- **Voices are the weakest part.** LiveKit documents four Inworld voices by name and I used
-  three of them. Priya reads as "upbeat and friendly," which fights her written temperament. The
-  full roster is in the Inworld playground and swapping is one line in
-  [`agent/src/personas.py`](agent/src/personas.py). Voice quality was not the point of the demo,
-  so I timeboxed it.
+- **Voices are the weakest part.** LiveKit documents four Inworld voices by name and I have six
+  personas, so they are distinct within a mode rather than globally. Priya reads as "upbeat and
+  friendly", which fights her written temperament. The full roster is in the Inworld playground
+  and swapping is one line in [`agent/src/personas.py`](agent/src/personas.py). Voice quality was
+  not the point, so I timeboxed it.
+- **The qualification thresholds are inferred, not given.** Self-serve topping out around fifty
+  thousand agent minutes comes from reading the published Scale plan, and the thousand-employee
+  Commercial/Enterprise line comes from how the segments are described publicly. If the real
+  cutoffs differ, they are two constants in [`web/lib/modes.ts`](web/lib/modes.ts).
 - **Nothing is stored.** No auth, no accounts, no database. The transcript lives in the browser
   session and is posted once for grading. For a demo this is the right call, and it also means
   nothing sits between a visitor and the experience.
 - **Cost is trivial at demo volume,** roughly $0.045 to $0.05 per minute of conversation across
   STT, LLM, and TTS, with TTS as about 60% of it.
 
-Built over a weekend as a working argument for how I'd ramp AEs on a technical product. The
-fastest way to judge it is to open the demo, pick the Skeptic, and try to bluff him on latency.
-Happy to walk through any of it live.
+Built over a couple of evenings, partly to have something to show and partly because building on
+a product is the fastest way to learn it. The quickest way to judge it is to open the demo, pick
+the Skeptic, and try to bluff him on latency. He will not let you.
+
+Happy to walk through any of it live, including the parts I would do differently.
