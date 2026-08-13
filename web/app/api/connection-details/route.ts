@@ -32,6 +32,7 @@ function randomSuffix(): string {
 
 interface ConnectionRequest {
   personaId?: string;
+  mode?: string;
   stage?: string;
   /** Prior-call summaries, already condensed by the campaign store. */
   history?: string;
@@ -98,8 +99,14 @@ async function createConnectionDetails(body: ConnectionRequest) {
     metadata = { persona_id: persona.id, display_name: persona.name };
   }
 
-  metadata.stage = stage.id;
-  metadata.stage_instructions = stage.agentInstructions;
+  // An SDR call is one inbound conversation, not a point in a funnel, so it gets no stage
+  // instructions at all.
+  if (body.mode !== 'sdr') {
+    metadata.stage = stage.id;
+    metadata.stage_instructions = stage.agentInstructions;
+  } else {
+    metadata.mode = 'sdr';
+  }
   if (body.history?.trim()) {
     metadata.history = body.history.trim().slice(0, MAX_HISTORY_CHARS);
   }

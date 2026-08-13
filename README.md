@@ -8,7 +8,7 @@ Three personas at ascending difficulty. Real objections mined from LiveKit's pri
 docs, and the competitive field (Vapi, Retell, Pipecat, raw OpenAI Realtime). Runs on one
 set of LiveKit credentials, because every model in it goes through LiveKit Inference.
 
-**[Live demo](https://sparring-partner-rosy.vercel.app)** — pick a prospect and talk to them.
+**[Live demo](https://sparring-partner-rosy.vercel.app)**. Pick a prospect and talk to them.
 
 ---
 
@@ -126,7 +126,33 @@ Three things I would want to pressure-test before betting a ramp program on it:
 
 ## The tool
 
-Three personas, each a prompt file in [`agent/personas/`](agent/personas/):
+Two modes, because AEs and SDRs are being trained on different things.
+
+### SDR mode: qualification
+
+One inbound call, one question. Most LiveKit leads arrive through "talk to sales", and the
+failure I would bet is most common is qualifying on reputation (the raise, the logo, the
+title) instead of on whether they are running voice agents at volume. So the three inbound
+leads are built so that reputation and qualification point in opposite directions:
+
+| Lead | Looks like | Actually is |
+|---|---|---|
+| **Jordan Vance**, Chief of Staff, $180M raised | The best lead of the month | No project, no owner, no volume. Correct answer is self-serve and a trigger to reconnect |
+| **Ana Ruiz**, Eng Lead, bootstrapped, 180 people | Small, skip it | Live in production, ninety thousand minutes a month, rebuilding in six weeks. Qualify, Commercial |
+| **Tobias Lindqvist**, Director, 11,000 staff | Obvious enterprise deal | It is, and the call is really about whether you improvise about HIPAA |
+
+The scorecard grades the four facts you should leave with (use case, timeline, volume,
+headcount), whether you reached the right verdict, whether you routed Commercial against
+Enterprise correctly, and separately whether you qualified on the use case or on the logo.
+A rep can reach the right verdict for the wrong reason, and that still shows up.
+
+Qualification is checkable rather than vibes: self-serve tops out around fifty thousand agent
+minutes a month, and a thousand employees is the Commercial/Enterprise line.
+
+### AE mode: work the cycle
+
+Three personas at ascending difficulty, each a prompt file in
+[`agent/personas/`](agent/personas/):
 
 | Persona | Difficulty | Opens with |
 |---|---|---|
@@ -173,6 +199,19 @@ The scorecard grades per objection (1 to 5 with behavioural anchors), flags esca
 as pass or miss, computes talk/listen ratio, and writes one coaching paragraph to the rep. The
 rubric is in [`rubric.md`](rubric.md) and reps are meant to read it *before* their first call.
 A rubric a rep cannot see is a performance review, not a training tool.
+
+### Feedback you can actually use
+
+A grade tells a rep where they stand and nothing about what to do next, so for every objection
+they did not win the scorecard also shows the answer that would have won it, with a link to the
+page it came from.
+
+The links are the part worth explaining. The grader never writes a URL. It picks ids from a
+fixed registry in [`web/lib/sources.ts`](web/lib/sources.ts) and the server resolves them,
+dropping anything it does not recognise. A model asked to cite sources will happily invent a
+plausible docs URL, and a coaching note that sends a rep to a 404 is worse than one with no
+link at all. Every entry in that registry was checked to resolve when it was added, which also
+means there is exactly one file to fix when LiveKit reorganises their docs.
 
 ---
 

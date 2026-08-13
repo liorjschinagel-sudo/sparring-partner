@@ -89,6 +89,7 @@ export default function SparRoom({
         body: JSON.stringify({
           personaId: prospect.isCustom ? undefined : prospect.id,
           personaName: prospect.name,
+          mode: prospect.mode,
           stage: stageRef.current,
           turns: turnsRef.current,
           durationSeconds,
@@ -103,18 +104,20 @@ export default function SparRoom({
       const card = data as ScorecardData;
       setScorecard(card);
 
-      // Record it against the deal so the next call remembers this one.
-      const passed = callPassed(card.overallGrade, card.failedEscalation);
-      setCampaign(
-        recordCall(prospect.key, prospect.name, {
-          stage: card.stage,
-          stageLabel: card.stageLabel,
-          overallGrade: card.overallGrade,
-          passed,
-          prospectMemory: card.prospectMemory,
-          at: Date.now(),
-        })
-      );
+      // Deals progress; a qualification call does not. SDR mode keeps no campaign.
+      if (prospect.mode !== 'sdr') {
+        const passed = callPassed(card.overallGrade, card.failedEscalation);
+        setCampaign(
+          recordCall(prospect.key, prospect.name, {
+            stage: card.stage,
+            stageLabel: card.stageLabel,
+            overallGrade: card.overallGrade,
+            passed,
+            prospectMemory: card.prospectMemory,
+            at: Date.now(),
+          })
+        );
+      }
 
       setPhase('scored');
     } catch (err) {
@@ -137,8 +140,10 @@ export default function SparRoom({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           personaId: prospect.isCustom ? undefined : prospect.id,
+          mode: prospect.mode,
           stage: stageRef.current,
-          history: buildHistoryPrompt(getCampaign(prospect.key)),
+          history:
+            prospect.mode === 'sdr' ? undefined : buildHistoryPrompt(getCampaign(prospect.key)),
           customPrompt: prospect.systemPrompt,
           displayName: prospect.name,
           voice: prospect.voice,

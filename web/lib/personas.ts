@@ -11,8 +11,10 @@
  * asserts the agent side; `npm run check:personas` asserts they still line up.
  *
  * Source of truth for the objection content itself is `objection-bank.md` at the repo
- * root — edit that first, then reflect changes here and in the persona prompts.
+ * root. Edit that first, then reflect changes here and in the persona prompts.
  */
+
+import type { ModeId, Qualification } from '@/lib/modes';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 
@@ -25,6 +27,11 @@ export interface Objection {
   strongAnswer: string;
   /** Marks the objections that must be escalated rather than answered */
   escalationTrap?: boolean;
+  /**
+   * Curated source ids from lib/sources.ts. Optional: where this is empty the grader picks
+   * from the same registry, so remediation is always linked either way.
+   */
+  sources?: string[];
 }
 
 export interface BriefFact {
@@ -37,8 +44,8 @@ export interface BriefFact {
  *
  * Everything here is what a rep could reasonably have found before dialling: the company
  * website, LinkedIn, the CRM, a news alert. It deliberately does NOT contain the facts the
- * persona is written to withhold — Dan has not tested on a phone, Priya has an EU data
- * residency requirement — because uncovering those is the discovery being trained.
+ * persona is written to withhold (Dan has not tested on a phone, Priya has an EU data
+ * residency requirement), because uncovering those is the discovery being trained.
  *
  * Every fact here must match what the persona will confirm out loud. They are drawn from
  * the same persona files the agent runs on.
@@ -58,6 +65,10 @@ export interface Persona {
   company: string;
   difficulty: Difficulty;
   tier: 1 | 2 | 3;
+  /** `ae` works a deal across stages, `sdr` is one inbound qualification call. */
+  mode: ModeId;
+  /** SDR personas only: the facts that decide the verdict, and the reputation trap. */
+  qualification?: Qualification;
   /** One-line scouting report shown on the persona card */
   scoutingReport: string;
   /** The prospect's opening posture, shown on the call screen for context */
@@ -75,6 +86,7 @@ export const PERSONAS: Persona[] = [
     company: 'Threadline · Series B',
     difficulty: 'Easy',
     tier: 1,
+    mode: 'ae',
     scoutingReport:
       'Friendly, technically curious, already sold on the category. Will hand you the deal if you are accurate and do not oversell.',
     openingPosture: 'Wants a voice agent for tier-1 support. Genuinely evaluating build vs buy.',
@@ -111,14 +123,14 @@ export const PERSONAS: Persona[] = [
         id: '1.1',
         label: 'What is your actual latency? It needs to feel instant.',
         strongAnswer:
-          'Distinguishes transport latency from model latency, names the levers (preemptive generation, model choice, region), and offers to benchmark against their stack with an SA. Critically, does NOT invent a number — LiveKit publishes no end-to-end latency benchmark.',
+          'Distinguishes transport latency from model latency, names the levers (preemptive generation, model choice, region), and offers to benchmark against their stack with an SA. Critically, does NOT invent a number. LiveKit publishes no end-to-end latency benchmark.',
         escalationTrap: true,
       },
       {
         id: '1.2',
         label: 'What does this cost at fifty thousand minutes a month?',
         strongAnswer:
-          'Builds the stack rather than quoting one number: ~$0.01/min agent session plus STT (~$0.005), TTS (~$0.03), LLM (~$0.0006), landing near $0.045–0.05/min all-in. Flags that TTS is the dominant line item and a lever the customer controls.',
+          'Builds the stack rather than quoting one number: ~$0.01/min agent session plus STT (~$0.005), TTS (~$0.03), LLM (~$0.0006), landing near five cents a minute all-in. Flags that TTS is the dominant line item and a lever the customer controls.',
       },
       {
         id: '1.3',
@@ -147,6 +159,7 @@ export const PERSONAS: Persona[] = [
     company: 'Kelvin · mid-market SaaS',
     difficulty: 'Medium',
     tier: 2,
+    mode: 'ae',
     scoutingReport:
       'Opens with "we will just build on the OpenAI Realtime API." Interrupts. Tests for hand-waving. Respects honesty more than polish.',
     openingPosture: 'Already prototyped on Realtime and it worked. Has not tested it on a phone.',
@@ -189,7 +202,7 @@ export const PERSONAS: Persona[] = [
         id: '2.2',
         label: 'We have two strong infra engineers. We will build the transport.',
         strongAnswer:
-          'Does not insult the team or claim it is impossible. Enumerates the actual scope — transport, turn detection, barge-in, dispatch, failover, observability, telephony — then asks what those two engineers are NOT doing while they build it. Opportunity cost, not difficulty.',
+          'Does not insult the team or claim it is impossible. Enumerates the actual scope. Transport, turn detection, barge-in, dispatch, failover, observability, telephony. Then asks what those two engineers are NOT doing while they build it. Opportunity cost, not difficulty.',
       },
       {
         id: '2.3',
@@ -214,7 +227,7 @@ export const PERSONAS: Persona[] = [
         id: '2.6',
         label: 'What happens when OpenAI ships the rest of this themselves?',
         strongAnswer:
-          'Treats platform risk as a legitimate question. LiveKit is model-agnostic by design and is the transport layer underneath OpenAI\'s own consumer voice product — being infrastructure is the hedge. Does not answer "they won\'t".',
+          'Treats platform risk as a legitimate question. LiveKit is model-agnostic by design and is the transport layer underneath OpenAI\'s own consumer voice product. Being infrastructure is the hedge. Does not answer "they won\'t".',
       },
     ],
   },
@@ -225,6 +238,7 @@ export const PERSONAS: Persona[] = [
     company: 'Northwind Logistics · late-stage',
     difficulty: 'Hard',
     tier: 3,
+    mode: 'ae',
     scoutingReport:
       'Runs the full competitive board and a procurement playbook. Treats you as interchangeable until proven otherwise. Will not accept "we are more flexible."',
     openingPosture: 'Already talked to Vapi and Retell. An engineer has Pipecat working.',
@@ -267,7 +281,7 @@ export const PERSONAS: Persona[] = [
         id: '3.2',
         label: 'Vapi and Retell ship faster for simple use cases.',
         strongAnswer:
-          'CONCEDES IT — it is true, and denying it costs the deal. Then qualifies by asking where their roadmap goes: video, custom pipeline logic, data residency and model portability are where managed orchestrators become the constraint.',
+          'CONCEDES IT. It is true, and denying it costs the deal. Then qualifies by asking where their roadmap goes: video, custom pipeline logic, data residency and model portability are where managed orchestrators become the constraint.',
       },
       {
         id: '3.3',
@@ -285,14 +299,274 @@ export const PERSONAS: Persona[] = [
         id: '3.5',
         label: 'Retell includes HIPAA and SOC 2 on every plan. What do you include?',
         strongAnswer:
-          'ESCALATION TRAP. Compliance must never be improvised — it creates real legal exposure. Correct handling states only what is actually known, explicitly declines to guess, and commits to a written answer from the right person by a specific date. Any confident compliance claim here scores 1.',
+          'ESCALATION TRAP. Compliance must never be improvised. It creates real legal exposure. Correct handling states only what is actually known, explicitly declines to guess, and commits to a written answer from the right person by a specific date. Any confident compliance claim here scores 1.',
         escalationTrap: true,
       },
       {
         id: '3.6',
         label: 'Give me one reason that is not "we are more flexible".',
         strongAnswer:
-          'Produces one sharp, checkable claim. The strongest available: LiveKit is the WebRTC infrastructure behind ChatGPT Advanced Voice Mode — proof the transport holds at consumer scale, which no managed orchestrator can match. Repeating "flexible" fails outright.',
+          'Produces one sharp, checkable claim. The strongest available: LiveKit is the WebRTC infrastructure behind ChatGPT Advanced Voice Mode. Proof the transport holds at consumer scale, which no managed orchestrator can match. Repeating "flexible" fails outright.',
+        sources: ['openaiPartnership'],
+      },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  // SDR mode: inbound qualification
+  //
+  // Reputation and qualification point in opposite directions on purpose. The lead with
+  // the big raise is not worth an AE call; the bootstrapped one nobody has heard of is
+  // the best opportunity of the month.
+  // ---------------------------------------------------------------------------
+
+  {
+    id: 'inbound-hype',
+    name: 'Jordan Vance',
+    title: 'Chief of Staff',
+    company: 'Halcyon AI · Series C',
+    difficulty: 'Easy',
+    tier: 1,
+    mode: 'sdr',
+    accent: '#4ade80',
+    scoutingReport:
+      'Warm, fast and generous with company news. Will happily spend your whole call on the funding round if you let him.',
+    openingPosture: 'CEO saw a competitor launch and asked "should we be doing this?". Jordan owns the answer.',
+    qualification: {
+      employees: 240,
+      hasVoiceUseCase: false,
+      timeline: 'First half of next year, maybe. Nothing committed.',
+      monthlyMinutes: null,
+      correctVerdict: 'self-serve',
+      correctSegment: 'None',
+      rationale:
+        'No project, no owner, no timeline and no volume. Point them at the docs and the free tier, set a trigger to reconnect when something actually exists, and do not burn an AE hour on a browser tab.',
+      reputationBait:
+        'A $120M Series C, two TechCrunch pieces this year, and a title that sounds like authority.',
+    },
+    brief: {
+      company: [
+        { label: 'What they do', value: 'AI-native productivity suite, sold to mid-market' },
+        { label: 'Size & stage', value: '~240 people, Series C, $180M raised in total' },
+        { label: 'Recent', value: 'Closed a $120M round four months ago, covered widely' },
+        { label: 'Voice today', value: 'Nothing shipped. No public voice product' },
+      ],
+      person: [
+        { label: 'Role', value: 'Chief of Staff. Owns the question, not the engineering' },
+        { label: 'Background', value: 'Strategy and ops. Not technical' },
+        { label: 'Disposition', value: 'Warm, fast, generous with company news' },
+      ],
+      deal: [
+        { label: 'Source', value: 'Inbound "talk to sales" form, submitted yesterday' },
+        { label: 'Stated interest', value: '"Exploring voice AI"' },
+        { label: 'Trigger', value: 'CEO forwarded a competitor launch video in Slack' },
+      ],
+      hooks: [
+        'The form said "exploring". Find out what that word is doing before you invest the call.',
+        'Chief of Staff is not an engineering owner. Ask who would actually build this.',
+        'A raise is not a use case. Nothing about the round tells you whether there is a project.',
+      ],
+    },
+    objections: [
+      {
+        id: 'q1.1',
+        label: 'We are exploring the space and want to get smart on this.',
+        strongAnswer:
+          'Does not accept "exploring" as an answer. Asks what specifically they would build, for whom, and what happens if they do nothing. The vagueness is the signal.',
+      },
+      {
+        id: 'q1.2',
+        label: 'We just raised a hundred and twenty million, so budget is not the issue.',
+        strongAnswer:
+          'THE REPUTATION TRAP. Budget was never the question. Does not let the round stand in for a use case, and moves straight back to what is being built and when. A rep who gets visibly warmer here has failed.',
+      },
+      {
+        id: 'q1.3',
+        label: 'Timeline is probably first half of next year, depending what we learn.',
+        strongAnswer:
+          'Recognises a non-timeline. Establishes there is no committed project and no engineering owner, rather than booking a meeting against a maybe.',
+      },
+      {
+        id: 'q1.4',
+        label: 'Volume? Honestly I could not tell you. A few hundred calls to start?',
+        strongAnswer:
+          'Takes the answer at face value and does the arithmetic out loud: a few hundred calls sits far inside the free tier, so this is self-serve today. Says so plainly and helpfully.',
+        sources: ['pricing'],
+      },
+      {
+        id: 'q1.5',
+        label: 'Should we set up time with someone more technical on your side?',
+        strongAnswer:
+          'Declines, kindly and with a reason. Points to the docs and the free tier, offers to reconnect when there is a project and an owner, and leaves the door genuinely open. Booking the AE call is the failure.',
+        sources: ['voiceAi', 'pricing'],
+      },
+    ],
+  },
+
+  {
+    id: 'inbound-sleeper',
+    name: 'Ana Ruiz',
+    title: 'Engineering Lead, Voice',
+    company: 'Ferrovia Freight · bootstrapped',
+    difficulty: 'Medium',
+    tier: 2,
+    mode: 'sdr',
+    accent: '#fbbf24',
+    scoutingReport:
+      'Terse, slightly impatient, opens with a technical question. Answers exactly what you ask and then stops, so what you leave with depends entirely on what you thought to ask.',
+    openingPosture: 'Has a specific SIP question and could not find the answer in the docs fast enough.',
+    qualification: {
+      employees: 180,
+      hasVoiceUseCase: true,
+      timeline: 'Live since January. Rebuilding in the next six weeks, choosing transport now.',
+      monthlyMinutes: 90_000,
+      correctVerdict: 'qualify',
+      correctSegment: 'Commercial',
+      rationale:
+        'Live in production, ninety thousand minutes a month (well past self-serve), an imminent rebuild, and the decision-maker is on the phone. 180 employees puts it in Commercial. This is the best lead of the month and the only thing that hides it is the lack of a logo.',
+      reputationBait:
+        'Bootstrapped, no funding to name, 180 people and a dated website. Everything on the surface says "small, skip it".',
+    },
+    brief: {
+      company: [
+        { label: 'What they do', value: 'Freight brokerage and carrier management' },
+        { label: 'Size & stage', value: '~180 people, bootstrapped, profitable' },
+        { label: 'Recent', value: 'Nothing. They do not do press' },
+        { label: 'Voice today', value: 'Something is running. Details unclear from outside' },
+      ],
+      person: [
+        { label: 'Role', value: 'Engineering Lead, Voice' },
+        { label: 'Background', value: 'Telephony and backend. Ten years in logistics' },
+        { label: 'Disposition', value: 'Terse. Warms up for specifics, goes cold for scripts' },
+      ],
+      deal: [
+        { label: 'Source', value: 'Inbound contact form' },
+        { label: 'Stated interest', value: 'A specific question about SIP and existing telephony' },
+        { label: 'Trigger', value: 'Could not find the answer in the docs quickly' },
+      ],
+      hooks: [
+        'Her title is "Engineering Lead, Voice". Somebody is already paying for a voice team.',
+        'She asked a specific SIP question. Answering it, or getting someone who can, buys the whole call.',
+        'She will not volunteer her volume. If you do not ask for a number you will not get one.',
+      ],
+    },
+    objections: [
+      {
+        id: 'q2.1',
+        label: 'I have a question about SIP. Is this even the right conversation?',
+        strongAnswer:
+          'Engages the actual question rather than deflecting into discovery. Confirms LiveKit sits alongside existing telephony over SIP, or commits to getting someone who can answer properly. Earning the right to ask questions starts here.',
+        sources: ['sip'],
+      },
+      {
+        id: 'q2.2',
+        label: 'We already have one running. Been live since January.',
+        strongAnswer:
+          'Recognises this as the single most qualifying sentence available and digs in: what is it doing, what is it built on, what breaks. A live production system is the difference between a lead and a prospect.',
+      },
+      {
+        id: 'q2.3',
+        label: 'Drops on bad connections. Our drivers are on the road.',
+        strongAnswer:
+          'Connects the symptom to transport rather than pitching features. Mobile-network packet loss is exactly the WebRTC argument, and this is the moment to make it concretely.',
+        sources: ['ossServer', 'turns'],
+      },
+      {
+        id: 'q2.4',
+        label: 'About ninety thousand minutes a month. Doubles in Q1.',
+        strongAnswer:
+          'ONLY SURFACES IF ASKED. Gets a real number, compares it to self-serve out loud (this is roughly double the Scale plan ceiling), and treats it as the qualifying fact it is.',
+        sources: ['pricing'],
+      },
+      {
+        id: 'q2.5',
+        label: 'Rebuilding in six weeks. Picking the transport layer this month.',
+        strongAnswer:
+          'Recognises a closing window and moves with urgency: gets a technical conversation booked in days, not "sometime next week". Slow follow-up loses this deal to whoever answers first.',
+      },
+    ],
+  },
+
+  {
+    id: 'inbound-enterprise',
+    name: 'Tobias Lindqvist',
+    title: 'Director of Platform Engineering',
+    company: 'Meridian Health Systems · ~11,000 staff',
+    difficulty: 'Hard',
+    tier: 3,
+    mode: 'sdr',
+    accent: '#f87171',
+    scoutingReport:
+      'Precise, unhurried, and comfortable with silence. Works in healthcare, so expect questions you may not be the right person to answer.',
+    openingPosture: 'Pilot live in two facilities. Needs to know this can clear procurement before going further.',
+    qualification: {
+      employees: 11_000,
+      hasVoiceUseCase: true,
+      timeline: 'Pilot live now, decision this quarter, rollout next fiscal year.',
+      monthlyMinutes: 200_000,
+      correctVerdict: 'qualify',
+      correctSegment: 'Enterprise',
+      rationale:
+        'Eleven thousand employees puts this over the Enterprise line on headcount alone, and two hundred thousand minutes a month is four times the self-serve ceiling. Qualifying is easy. The call is won or lost on whether the rep improvises about HIPAA.',
+      reputationBait:
+        'Healthcare, a recognisable network, and a live pilot. It looks so clean that a rep can relax into it and start answering compliance questions they should not touch.',
+    },
+    brief: {
+      company: [
+        { label: 'What they do', value: 'Hospital network, patient access and scheduling' },
+        { label: 'Size & stage', value: '~11,000 employees across the network' },
+        { label: 'Regulatory', value: 'Handles protected health information' },
+        { label: 'Voice today', value: 'Pilot live in two facilities' },
+      ],
+      person: [
+        { label: 'Role', value: 'Director of Platform Engineering. Owns the platform decision' },
+        { label: 'Background', value: 'Enterprise architecture, large vendor evaluations' },
+        { label: 'Disposition', value: 'Precise and unhurried. Uses silence. Unmoved by enthusiasm' },
+      ],
+      deal: [
+        { label: 'Source', value: 'Inbound contact form' },
+        { label: 'Stated interest', value: 'Whether LiveKit can clear their requirements at all' },
+        { label: 'Gatekeepers', value: 'CIO owns budget. Procurement and security both gate it' },
+      ],
+      hooks: [
+        'Healthcare and a live pilot means compliance questions are coming. Decide now what you will not answer.',
+        'Eleven thousand employees settles the segment before you dial. Do not treat this as Commercial.',
+        'He owns the platform decision but not the budget. Find out who does.',
+      ],
+    },
+    objections: [
+      {
+        id: 'q3.1',
+        label: 'We have a pilot live in two facilities. Patient access and prescription callbacks.',
+        strongAnswer:
+          'Establishes the shape of the pilot and what would have to be true to expand it, rather than treating "pilot" as a win in itself.',
+      },
+      {
+        id: 'q3.2',
+        label: 'Full rollout is around two hundred thousand minutes a month.',
+        strongAnswer:
+          'Gets the number, states plainly that it is far past self-serve, and pairs it with the eleven thousand headcount to route this to Enterprise rather than Commercial.',
+        sources: ['pricing'],
+      },
+      {
+        id: 'q3.3',
+        label: 'We handle protected health information. Are you HIPAA compliant, and will you sign a BAA?',
+        strongAnswer:
+          'ESCALATION TRAP. An SDR must never answer this from memory. Correct handling states only what is genuinely known, declines to guess explicitly, and commits to the right owner by a specific date. Any confident yes fails the call outright, even if it happens to be true.',
+        escalationTrap: true,
+      },
+      {
+        id: 'q3.4',
+        label: 'Where is call audio processed and stored, and for how long?',
+        strongAnswer:
+          'ESCALATION TRAP. Data residency and retention are not SDR territory. Routes it to a solutions architect or security contact with a date, rather than reasoning from the docs on a live call.',
+        escalationTrap: true,
+      },
+      {
+        id: 'q3.5',
+        label: 'Who else needs to be involved on your side before we go further?',
+        strongAnswer:
+          'Maps the buying group honestly (AE, solutions architect, and whoever owns compliance answers) and sets a next step with named roles and a date, rather than promising to "get some information over".',
       },
     ],
   },
@@ -300,6 +574,10 @@ export const PERSONAS: Persona[] = [
 
 export function getPersona(id: string): Persona | undefined {
   return PERSONAS.find((p) => p.id === id);
+}
+
+export function personasForMode(mode: ModeId): Persona[] {
+  return PERSONAS.filter((p) => p.mode === mode);
 }
 
 export const DIFFICULTY_ORDER: Difficulty[] = ['Easy', 'Medium', 'Hard'];

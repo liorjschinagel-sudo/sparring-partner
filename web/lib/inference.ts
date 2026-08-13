@@ -82,6 +82,27 @@ export async function chatCompletion(
 }
 
 /**
+ * Bring model-written prose into house style before it reaches a rep.
+ *
+ * Coaching notes are generated at runtime, so they cannot be copy-edited in advance. The
+ * prompt asks for the style; this enforces the one rule that is mechanical (no em or en
+ * dashes) rather than trusting the model to remember it every time.
+ */
+export function sanitizeProse(text: string): string {
+  return text
+    .replace(/\s*[—–]\s*/g, (match) => (/^\s|\s$/.test(match) ? ', ' : ', '))
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*,/g, ',')
+    .replace(/,\s*\./g, '.')
+    .trim();
+}
+
+/** Apply sanitizeProse to a value that may be undefined, preserving undefined. */
+export function sanitizeMaybe(text: string | undefined | null): string | undefined {
+  return text ? sanitizeProse(text) : undefined;
+}
+
+/**
  * Pull a JSON object out of a model response, tolerating markdown fences and any
  * preamble the model decided to add.
  */

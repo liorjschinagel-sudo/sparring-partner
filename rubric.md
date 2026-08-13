@@ -1,9 +1,8 @@
-# Sparring Partner Rubric — What Good Looks Like
+# Sparring Partner Rubric. What Good Looks Like
 
 This file is both things it needs to be: the grading specification the scorecard runs on,
 and a standalone enablement artifact a rep can read *before* their first call to know what
-they are being measured against. Nothing here is secret from the rep. That is deliberate —
-a rubric a rep can't see is a performance review, not a training tool.
+they are being measured against. Nothing here is secret from the rep. That is deliberate. A rubric a rep can't see is a performance review, not a training tool.
 
 ---
 
@@ -20,14 +19,14 @@ Applied per objection. The anchor points are behavioural, not vibes.
 | **1** | Damaging | Invents facts, trash-talks a competitor, argues with the prospect, or bluffs on a topic that needs escalation. Actively worse than saying nothing. |
 
 **Not raised** is scored separately from **raised and handled badly**. An objection the
-prospect never got to is not the rep's failure — but if the rep spent six minutes talking
+prospect never got to is not the rep's failure, but if the rep spent six minutes talking
 and the prospect never got an objection in, that shows up in the talk/listen ratio instead.
 
 ---
 
 ## The scored dimensions
 
-### 1. Objection handling (per objection, 1–5)
+### 1. Objection handling (per objection, 1 to 5)
 
 The core score. Graded against the persona's queue in `objection-bank.md`.
 
@@ -56,9 +55,9 @@ Certain questions must not be answered from memory, even correctly:
 
 For each of these raised in the call:
 
-- **Pass** — the rep declines to guess, says plainly what they do and don't know, and
+- **Pass**. The rep declines to guess, says plainly what they do and don't know, and
   commits to bringing the right person, ideally with a specific role and timeframe.
-- **Miss** — the rep answers from memory. **A miss is scored as a miss even if the answer
+- **Miss**. The rep answers from memory. **A miss is scored as a miss even if the answer
   was factually correct.** The process is what's being trained. A rep who guesses right
   today guesses wrong next quarter, in a deal that matters, on a claim that ends up in a
   contract.
@@ -68,20 +67,20 @@ solutions engineer on Thursday with your infra team."
 
 ### 3. Talk / listen ratio (computed, not judged)
 
-Measured from transcript word counts, not by the model — it's arithmetic, and arithmetic
+Measured from transcript word counts, not by the model. It's arithmetic, and arithmetic
 should not be delegated to a language model that might round it into a narrative.
 
 | Rep share of words | Read |
 |---|---|
 | **under 40%** | Excellent. The prospect is doing the work of selling to themselves. |
-| **40–55%** | Healthy discovery-call balance. |
-| **55–70%** | Pitching more than listening. Common and correctable. |
+| **40 to 55%** | Healthy discovery-call balance. |
+| **55 to 70%** | Pitching more than listening. Common and correctable. |
 | **over 70%** | The rep is presenting, not discovering. Almost always correlates with low objection scores, because objections never get room to surface. |
 
 Read against the persona: the Skeptic interrupts, so a rep sparring with him should
 naturally land lower than one with the Champion, who is happy to listen.
 
-### 4. Close quality (1–5), judged against the stage
+### 4. Close quality (1 to 5), judged against the stage
 
 Scored on the last ninety seconds, once the prospect signals a hard stop. **What counts as a
 good close depends entirely on where the deal is.** A second meeting is a 5 in Discovery and a
@@ -95,17 +94,17 @@ good close depends entirely on where the deal is.** A second meeting is a 5 in D
 | Procurement | Every concession traded for something, compliance routed with a date |
 | Commit | A written mutual action plan: named signer, remaining steps, dates they said |
 
-### 5. Stage fit (1–5)
+### 5. Stage fit (1 to 5)
 
 Was this the right conversation for this point in the deal? Correct content at the wrong stage
-still scores badly — pitching architecture in Procurement, or discounting in Discovery, both
+still scores badly. Pitching architecture in Procurement, or discounting in Discovery, both
 signal a rep running their own script rather than reading the deal.
 
-### 6. Research usage (1–5)
+### 6. Research usage (1 to 5)
 
 Only scored when a pre-call brief exists. Did the rep use it, or burn discovery on questions
 the brief already answered? Asking Dan what his company does, when it is on the card in front
-of you, is a 1 — and the prospect notices.
+of you, is a 1, and the prospect notices.
 
 ---
 
@@ -131,6 +130,33 @@ A rep who averages 4.2 but invented a compliance answer has not earned the next 
 because in a real deal that answer surfaces later, in writing, in front of someone who checks.
 Bluffing does not advance deals here.
 
+## SDR mode: qualification
+
+An SDR is scored on something different, because the job is different. The question is not how
+well they handled an objection, it is whether they left the call actually knowing anything.
+
+**The four facts.** Each is established or it is not; there is no partial credit for a vibe.
+
+| Fact | What counts as established |
+|---|---|
+| Use case | A specific thing being built or already running, not "exploring" |
+| Timeline | Live, or a committed launch date. "First half of next year, maybe" is not a timeline |
+| Volume | An actual number, compared out loud against the self-serve ceiling (about 50,000 agent minutes a month) |
+| Headcount | Company size, and the routing that follows from it (1,000+ is Enterprise) |
+
+**The verdict.** Qualify, self-serve, or disqualify. Reaching no verdict at all is its own
+failure, and it is the most common one: the call ends warmly with a meeting booked and nothing
+decided.
+
+**The reputation trap.** Scored separately from the verdict, on purpose. A rep can reach the
+right answer for the wrong reason, and that habit will fail them on the next lead. If they got
+warmer because of the funding, the brand or the title, it is marked even when the verdict is
+correct.
+
+The bar worth internalising: a qualified prospect is running voice agents today or launching
+imminently, at volume that clears self-serve. Money raised is not a use case, and a job title
+is not volume.
+
 ## What is not an escalation trap
 
 The counterpart mistake is escalating things a rep should own. These are objections to handle
@@ -154,7 +180,7 @@ One paragraph, written **to the rep**, second person. It must:
 
 - Lead with the single highest-leverage change, not a summary of the call
 - Name one specific moment, quoting or closely paraphrasing what was actually said
-- Give one thing to keep doing — reps discard feedback that is purely corrective
+- Give one thing to keep doing. Reps discard feedback that is purely corrective
 - Avoid praise inflation. "Good energy" is not coaching.
 
 It must **not** re-list the per-objection grades. Those are already on the scorecard.

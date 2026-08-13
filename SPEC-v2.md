@@ -1,4 +1,4 @@
-# Sparring Partner v2 — Spec
+# Sparring Partner v2. Spec
 
 v1 shipped three fixed personas, each a prompt file, each good for one discovery call.
 v2 turns that into a program you can actually run a rep through: research before the call,
@@ -29,17 +29,17 @@ the right design anyway: the compile step produces the objection queue the grade
 
 ---
 
-## Feature 1 — Pre-call context cards
+## Feature 1. Pre-call context cards
 
 **Why.** Good discovery starts from research. v1 gives a rep a one-line scouting report, which
 trains them to wing it. Real reps walk in having read the account.
 
 **What.** Before "Start call", show three cards. All facts are fictional and labelled as such.
 
-- **Company** — industry, size, stage, tech stack, current vendors, why they are looking at
+- **Company**. Industry, size, stage, tech stack, current vendors, why they are looking at
   voice AI now, a recent event (funding, launch, outage)
-- **Person** — tenure, background, what they optimise for, how they buy, who they report to
-- **Deal** — lead source, what has happened so far, who else is involved, compelling event
+- **Person**. Tenure, background, what they optimise for, how they buy, who they report to
+- **Deal**. Lead source, what has happened so far, who else is involved, compelling event
 
 **The point is that the brief is loaded.** Facts in the cards are the same facts the persona
 will confirm on the call, and several are hooks a good rep should use ("I saw you just closed
@@ -51,7 +51,7 @@ generated from the same source as the prompt, never authored separately.
 
 ---
 
-## Feature 2 — Funnel stage, and a deal that progresses
+## Feature 2. Funnel stage, and a deal that progresses
 
 **Why.** Every role-play is a first call. Nobody practises the third one, which is where deals
 actually die. "Closed won" is a sequence of different conversations, not a better first call.
@@ -68,7 +68,7 @@ actually die. "Closed won" is a sequence of different conversations, not a bette
 
 **Campaign mode.** Pick a persona, start at Discovery. After each call the scorecard offers
 **Advance** if you cleared the bar (mean objection grade ≥ 3.5 **and** no failed escalation
-trap — bluffing does not advance a deal, which is the whole thesis). Deal state lives in
+trap. Bluffing does not advance a deal, which is the whole thesis). Deal state lives in
 `localStorage`: current stage, per-stage scores, and a one-paragraph summary of each prior call.
 
 That summary is the good part. It gets injected into the next call's prompt, so the prospect
@@ -80,18 +80,18 @@ Free play stays available: any stage, any time, no campaign.
 
 ---
 
-## Feature 3 — Author your own prospect
+## Feature 3. Author your own prospect
 
 **Why.** The three built-ins are LiveKit's competitive board. A rep preparing for a specific
 account on Tuesday needs *that* account.
 
 **Inputs** (any combination, all optional except one must be present):
 
-- **LinkedIn profile** — pasted text, not scraped. Scraping violates LinkedIn's terms and adds
+- **LinkedIn profile**. Pasted text, not scraped. Scraping violates LinkedIn's terms and adds
   a fragile dependency for no training benefit.
-- **CRM context** — account notes, open opportunity, prior touchpoints
-- **Free text** — the direct lever: "make her hostile about SOC 2", "he already churned once"
-- **Gong transcript** — paste a real call, get a follow-up conversation with that person,
+- **CRM context**. Account notes, open opportunity, prior touchpoints
+- **Free text**. The direct lever: "make her hostile about SOC 2", "he already churned once"
+- **Gong transcript**. Paste a real call, get a follow-up conversation with that person,
   carrying forward what was actually said and what was left open
 
 **Compile step.** `POST /api/compile-persona` makes one LLM call and returns a Brief: identity,
@@ -100,7 +100,7 @@ objection, escalation traps, and win conditions. The queue is what makes a custo
 gradeable rather than just a chat partner.
 
 **Gong-specific behaviour.** The compiler is instructed to extract what the prospect actually
-objected to, what the rep promised, and what was left unresolved — then open the simulated call
+objected to, what the rep promised, and what was left unresolved. Then open the simulated call
 on the unresolved thing. That is the highest-value rep in this entire spec: practising the
 follow-up you are about to have, against the objections you already heard.
 
@@ -126,9 +126,9 @@ discovered later.
 
 Two new dimensions, both stage-aware:
 
-- **Research usage** (1–5) — did the rep use the brief, or burn discovery on answered questions?
+- **Research usage** (1 to 5). Did the rep use the brief, or burn discovery on answered questions?
   Only scored when a brief exists.
-- **Stage fit** (1–5) — was this the right conversation for the stage? Pitching architecture in
+- **Stage fit** (1 to 5). Was this the right conversation for the stage? Pitching architecture in
   Procurement scores badly even if the content is correct.
 
 `closeQuality` becomes stage-relative: a good close in Discovery is a second meeting, in Commit

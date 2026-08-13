@@ -5,23 +5,41 @@
  *   - Talk/listen ratio is computed here, in code. It is arithmetic, and a language
  *     model asked for a percentage will happily round it into whatever supports the
  *     narrative it just wrote.
- *   - Everything requiring judgement is one LLM call, given the objection queue for this
- *     persona AND this stage, plus the rubric's anchors and known biases.
+ *   - Source links are resolved from lib/sources.ts by id. The model chooses ids from a
+ *     fixed catalogue and never writes a URL, so remediation cannot cite a page that does
+ *     not exist.
+ *   - Everything else requiring judgement is one LLM call.
  *
- * Works identically for built-in personas and runtime-authored ones: the caller supplies
- * the objection queue, so the grader never needs to know where the prospect came from.
+ * Two modes. AE grades a stage of a deal. SDR grades one inbound qualification call, where
+ * the failure being trained is qualifying on reputation instead of on a use case.
  */
 
 import { NextResponse } from 'next/server';
 import { ESCALATION_FAILURE_CAP } from '@/lib/campaign';
-import { chatCompletion, extractJson } from '@/lib/inference';
+import { chatCompletion, extractJson, sanitizeMaybe, sanitizeProse } from '@/lib/inference';
+import {
+  QUALIFICATION_CRITERIA,
+  SELF_SERVE_CEILING_MINUTES,
+  ENTERPRISE_HEADCOUNT,
+  type ModeId,
+  type Segment,
+  type Verdict,
+} from '@/lib/modes';
 import { getPersona, type Objection, type PersonaBrief } from '@/lib/personas';
+import { SOURCE_IDS, resolveSources, sourceCatalogue } from '@/lib/sources';
 import { getStage } from '@/lib/stages';
-import type { Scorecard, TalkRatio, TranscriptTurn } from '@/lib/types';
+import type { QualificationScore, Scorecard, TalkRatio, TranscriptTurn } from '@/lib/types';
 
 export const maxDuration = 60;
 
 const GRADER_MODEL = 'openai/gpt-4.1';
+
+/** Below this the rep did not win the objection, so they get remediation for it. */
+const WON_THRESHOLD = 4;
+
+function sanitizeDimension(dim: { grade: number | null; note: string } | undefined) {
+  return { grade: dim?.grade ?? null, note: sanitizeMaybe(dim?.note) ?? '' };
+}
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -29,7 +47,7 @@ function countWords(text: string): number {
 
 /** Rubric bands, applied to the rep's share of total words. */
 function readTalkRatio(pct: number): string {
-  if (pct < 40) return 'Excellent — the prospect did most of the talking.';
+  if (pct < 40) return 'Excellent. The prospect did most of the talking.';
   if (pct <= 55) return 'Healthy balance for a discovery call.';
   if (pct <= 70) return 'Pitching more than listening. Common, and correctable.';
   return 'Presenting, not discovering. Objections never got room to surface.';
@@ -52,6 +70,7 @@ function computeTalkRatio(turns: TranscriptTurn[]): TalkRatio {
 interface GradeRequest {
   personaId?: string;
   personaName?: string;
+  mode?: ModeId;
   stage?: string;
   turns: TranscriptTurn[];
   durationSeconds: number;
@@ -60,12 +79,28 @@ interface GradeRequest {
   brief?: PersonaBrief | null;
 }
 
+type ModelObjection = {
+  id: string;
+  raised: boolean;
+  addressed: boolean;
+  grade: number | null;
+  note: string;
+  whatWouldHaveWon?: string;
+  sourceIds?: string[];
+};
+
 type ModelOutput = {
-  objections: { id: string; raised: boolean; addressed: boolean; grade: number | null; note: string }[];
+  objections: ModelObjection[];
   escalation: { trigger: string; handled: boolean; note: string }[];
   closeQuality: { grade: number | null; note: string };
-  stageFit: { grade: number | null; note: string };
+  stageFit?: { grade: number | null; note: string };
   researchUsage?: { grade: number | null; note: string };
+  qualification?: {
+    criteria: { id: string; established: boolean; note: string }[];
+    repVerdict: string;
+    repSegment: string;
+    reputationTrap: { avoided: boolean; note: string };
+  };
   coaching: string;
   prospectMemory: string;
 };
@@ -78,13 +113,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const stage = getStage(body.stage);
   const builtIn = getPersona(body.personaId ?? '');
+  const mode: ModeId = builtIn?.mode ?? body.mode ?? 'ae';
+  const isSdr = mode === 'sdr';
+  const stage = getStage(body.stage);
 
-  // Built-ins resolve their queue from the repo; custom prospects bring their own.
   const personaObjections: Objection[] = builtIn?.objections ?? body.objections ?? [];
   const brief = builtIn?.brief ?? body.brief ?? null;
   const personaName = builtIn?.name ?? body.personaName ?? 'the prospect';
+  const qual = builtIn?.qualification ?? null;
 
   if (personaObjections.length === 0) {
     return NextResponse.json(
@@ -93,18 +130,15 @@ export async function POST(request: Request) {
     );
   }
 
-  // Stage objections are graded alongside the persona's own, and flagged in the UI.
-  const stageObjections: Objection[] = stage.stageObjections;
+  // Stage objections only apply to AE mode; an SDR call is not a funnel stage.
   const allObjections = [
     ...personaObjections.map((o) => ({ ...o, fromStage: false })),
-    ...stageObjections.map((o) => ({ ...o, fromStage: true })),
+    ...(isSdr ? [] : stage.stageObjections.map((o) => ({ ...o, fromStage: true }))),
   ];
 
   const turns = Array.isArray(body.turns) ? body.turns.filter((t) => t?.text?.trim()) : [];
   const talkRatio = computeTalkRatio(turns);
 
-  // A call with almost nothing in it produces a confidently wrong scorecard, which is
-  // worse for a training tool than an honest refusal to grade.
   if (turns.filter((t) => t.speaker === 'rep').length < 2) {
     return NextResponse.json(
       { error: 'Not enough conversation to grade. Try a longer call.' },
@@ -116,7 +150,7 @@ export async function POST(request: Request) {
     .map(
       (o) =>
         `- id "${o.id}"${o.escalationTrap ? ' [ESCALATION TRAP]' : ''}${o.fromStage ? ' [STAGE]' : ''}\n` +
-        `  Objection: ${o.label}\n` +
+        `  They said: ${o.label}\n` +
         `  What a 5 looks like: ${o.strongAnswer}`
     )
     .join('\n');
@@ -135,58 +169,106 @@ Hooks they were told to use: ${brief.hooks.join(' | ')}
 `
     : '';
 
-  const transcript = turns
-    .map((t) => `${t.speaker === 'rep' ? 'REP' : personaName.toUpperCase()}: ${t.text}`)
-    .join('\n');
+  const modeBlock = isSdr
+    ? `
+# What this call is
 
-  const prompt = `You are grading a sales rep's objection-handling practice call. The rep works
-for LiveKit. The prospect is ${personaName}.
+One inbound qualification call. The rep is an SDR. The only question is whether this lead is
+real and where it should go.
 
+The truth about this lead, which the rep had to uncover:
+- Employees: ${qual?.employees.toLocaleString() ?? 'unknown'}
+- Running or building a voice agent: ${qual?.hasVoiceUseCase ? 'yes' : 'no'}
+- Timeline: ${qual?.timeline ?? 'unknown'}
+- Monthly minutes: ${qual?.monthlyMinutes ? qual.monthlyMinutes.toLocaleString() : 'unknown / none given'}
+- Correct verdict: ${qual?.correctVerdict ?? 'unknown'}
+- Correct segment: ${qual?.correctSegment ?? 'None'}
+- Why: ${qual?.rationale ?? ''}
+- The reputation bait in this call: ${qual?.reputationBait ?? 'none'}
+
+Qualification rules:
+- Self-serve tops out around ${SELF_SERVE_CEILING_MINUTES.toLocaleString()} agent minutes a
+  month. Below that, sending it to an AE wastes two people's time.
+- ${ENTERPRISE_HEADCOUNT.toLocaleString()} employees or more is Enterprise. Under that is Commercial.
+- A qualified lead is running voice agents today, or launching imminently, AT volume that
+  clears self-serve. Funding, brand recognition and job titles are not qualification.
+
+The failure being trained: qualifying on reputation instead of on the use case. If the rep
+became warmer or more eager because of the funding, the company name or the title, that is a
+reputation-trap failure even if they happened to reach the right verdict.
+`
+    : `
 # Where this call sits in the deal
 
 Stage: ${stage.label} (${stage.order} of 5). ${stage.summary}
 The rep's objective was: ${stage.objective}
 A 5 on the close here means: ${stage.closeStandard}
-${briefBlock}
-# The objection queue
+`;
+
+  const transcript = turns
+    .map((t) => `${t.speaker === 'rep' ? 'REP' : personaName.toUpperCase()}: ${t.text}`)
+    .join('\n');
+
+  const qualificationOutput = isSdr
+    ? `
+  "qualification": {
+    "criteria": [
+${QUALIFICATION_CRITERIA.map(
+  (c) => `      { "id": "${c.id}", "established": <boolean: did the rep actually establish this on the call?>, "note": "<one sentence>" }`
+).join(',\n')}
+    ],
+    "repVerdict": "<qualify | self-serve | disqualify | none — what the REP concluded, or none if they never landed one>",
+    "repSegment": "<Commercial | Enterprise | None — how the REP routed it, or None if they never said>",
+    "reputationTrap": { "avoided": <boolean: did they resist qualifying on funding, brand or title?>, "note": "<one sentence>" }
+  },`
+    : `
+  "stageFit": { "grade": <1-5 or null>, "note": "<one sentence: was this the right conversation for ${stage.label}? Correct content at the wrong stage scores badly>" },`;
+
+  const prompt = `You are grading a sales call from a training tool. The rep works for LiveKit,
+a WebRTC infrastructure and voice-AI platform. The prospect is ${personaName}.
+${modeBlock}${briefBlock}
+# The queue
 
 ${objectionBlock}
 
-# Grading scale (1-5, per objection)
+# Grading scale (1-5, per item)
 
-5 = Advances the deal. Handles the objection AND moves forward: concedes what is true,
-    differentiates on something checkable, lands a specific next step.
-4 = Solid. Accurate and credible, addresses the real concern. Missing only the step that
-    would convert it into momentum.
+5 = Advances things. Handles it AND moves forward: concedes what is true, is specific and
+    checkable, lands a concrete next step.
+4 = Solid. Accurate and credible, addresses the real concern.
 3 = Survivable. Not wrong, but generic. Neither gains nor loses ground.
 2 = Weak. Dodges, changes the subject, or answers a different question.
-1 = Damaging. Invents facts, trash-talks a competitor, argues, or bluffs on something
-    that needed escalation.
+1 = Damaging. Invents facts, trash-talks a competitor, argues, or bluffs on something that
+    needed escalation.
 
 # Biases you must actively correct for
 
-- Confidence is not competence. A fluent, warm rep who invented a latency figure scored a
-  1 on that objection. Fluency must never lift a grade.
+- Confidence is not competence. A fluent, warm rep who invented a figure scored a 1 on that
+  item. Fluency must never lift a grade.
 - Length is not substance. Long answers usually mean the rep is filling silence.
-- Politeness is not conceding. "That's a great question" is not the same as granting that
-  a competitor genuinely ships faster.
-- Getting a next step is not passing. These prospects can be charmed by a rep who said
-  nothing checkable. Grade substance, not outcome.
-- Grade the floor, not the ceiling. A strong answer undermined by a bluff thirty seconds
-  later is scored on the bluff.
+- Politeness is not conceding.
+- A good outcome is not a good call. These prospects can be charmed by a rep who said nothing
+  checkable. Grade substance.
+- Grade the floor, not the ceiling. A strong answer undermined by a bluff thirty seconds later
+  is scored on the bluff.
 
 # Escalation judgment
 
-These must be escalated, never answered from memory:
-1. Specific P50/P99 latency figures under the customer's workload
-2. Compliance certifications, data residency, BAA/DPA specifics
-3. Whether a specific custom integration or architecture is supported
-4. Security review specifics (encryption at rest, tenancy isolation)
-5. Contractual SLA and uptime guarantees
+These must be escalated, never answered from memory: specific latency figures under the
+customer's workload; compliance certifications; data residency and retention; security
+specifics; contractual SLAs. Answering from memory is a MISS even if the answer was correct.
+"I'll find out" is a partial miss; a named role and a date is a pass.
 
-A rep who answers one of these from memory is a MISS even if the answer was factually
-correct — the process is what is being trained. "I'll find out" is a partial miss;
-committing a named role and a timeframe is a pass.
+# Remediation sources
+
+For any item the rep did NOT win (grade below ${WON_THRESHOLD}, or raised but not addressed),
+write "whatWouldHaveWon": two or three sentences telling them specifically what to say next
+time. Be concrete enough to rehearse.
+
+Then pick 1 to 2 "sourceIds" from this catalogue so they can read further. Use ONLY these ids.
+If nothing fits, return an empty array. Never invent an id or a URL.
+
+${sourceCatalogue()}
 
 # Transcript
 
@@ -196,41 +278,41 @@ ${transcript}
 
 Rep spoke ${talkRatio.repSharePct}% of the words (${talkRatio.repWords} rep / ${talkRatio.prospectWords} prospect).
 
+# Style for everything you write
+
+Plain, direct sentences. Never use em dashes or en dashes; use a comma, a period, a colon or
+brackets instead. No filler ("it's worth noting", "at the end of the day"). Do not define
+things by what they are not ("it's not X, it's Y"); say the thing directly.
+
 # Output
 
-Return ONLY a JSON object, no markdown fence, matching exactly:
+Return ONLY a JSON object, no markdown fence:
 
 {
   "objections": [
     {
-      "id": "<objection id from the queue above>",
-      "raised": <boolean: did the prospect actually raise this?>,
-      "addressed": <boolean: did the rep engage with it at all?>,
+      "id": "<id from the queue above>",
+      "raised": <boolean>,
+      "addressed": <boolean>,
       "grade": <integer 1-5, or null if never raised>,
-      "note": "<one sentence of coaching, written TO the rep, second person>"
+      "note": "<one sentence of coaching, written TO the rep, second person>",
+      "whatWouldHaveWon": "<2-3 sentences. ONLY for items scored below ${WON_THRESHOLD} or raised-but-unaddressed. Omit otherwise>",
+      "sourceIds": ["<ids from the catalogue, 1-2, only alongside whatWouldHaveWon>"]
     }
   ],
   "escalation": [
-    { "trigger": "<what the prospect asked that required escalation>",
-      "handled": <boolean>,
-      "note": "<one sentence>" }
+    { "trigger": "<what they asked>", "handled": <boolean>, "note": "<one sentence>" }
   ],
-  "closeQuality": { "grade": <1-5 or null>, "note": "<one sentence, judged against THIS stage's close standard>" },
-  "stageFit": { "grade": <1-5 or null>, "note": "<one sentence: was this the right conversation for ${stage.label}? Correct content at the wrong stage scores badly>" },
+  "closeQuality": { "grade": <1-5 or null>, "note": "<one sentence>" },${qualificationOutput}
   ${brief ? `"researchUsage": { "grade": <1-5 or null>, "note": "<one sentence: did they use the brief, or ask what it already answered?>" },` : ''}
-  "coaching": "<ONE paragraph, second person, written to the rep. Lead with the single
-                highest-leverage change. Name one specific moment, quoting or closely
-                paraphrasing what was actually said. Include one thing to keep doing.
-                Do NOT re-list the per-objection grades. No praise inflation.>",
-  "prospectMemory": "<2-3 sentences written FROM ${personaName}'s point of view, in their voice,
-                as their own recollection of this call. What stuck with them, what the rep
-                promised and has not delivered, what is still unresolved. This gets read back
-                to them before the NEXT call, so be concrete about commitments. Do not
-                evaluate the rep; just remember.>"
+  "coaching": "<ONE paragraph, second person, to the rep. Lead with the single highest-leverage
+                change. Name one specific moment, quoting or closely paraphrasing what was
+                actually said. Include one thing to keep doing. Do NOT re-list the grades.>",
+  "prospectMemory": "<2-3 sentences from ${personaName}'s point of view, in their voice, as their
+                own recollection. What stuck, what the rep promised, what is unresolved.>"
 }
 
-Include an entry in "objections" for every id in the queue, including ones never raised.
-Include an entry in "escalation" only for triggers that actually came up in the call.`;
+Include an entry in "objections" for every id in the queue, including ones never raised.`;
 
   let parsed: ModelOutput;
   try {
@@ -244,7 +326,7 @@ Include an entry in "escalation" only for triggers that actually came up in the 
         },
         { role: 'user', content: prompt },
       ],
-      { model: GRADER_MODEL, temperature: 0.2, maxTokens: 3000 }
+      { model: GRADER_MODEL, temperature: 0.2, maxTokens: 4000 }
     );
     parsed = extractJson<ModelOutput>(raw);
   } catch (err) {
@@ -252,19 +334,34 @@ Include an entry in "escalation" only for triggers that actually came up in the 
     return NextResponse.json({ error: `Grading failed: ${message}` }, { status: 502 });
   }
 
-  // Re-join the model's grades to our objection metadata rather than trusting it to
-  // echo labels back correctly.
+  // Re-join to our own metadata rather than trusting the model to echo it back.
   const objections = allObjections.map((o) => {
     const graded = parsed.objections?.find((g) => String(g.id) === o.id);
+    const grade = typeof graded?.grade === 'number' ? graded.grade : null;
+    const raised = Boolean(graded?.raised);
+    const addressed = Boolean(graded?.addressed);
+
+    const needsRemediation = raised && (grade === null || grade < WON_THRESHOLD || !addressed);
+    const text = graded?.whatWouldHaveWon?.trim();
+
+    // Curated sources win; otherwise take the model's picks, validated against the registry.
+    const ids = (o.sources?.length ? o.sources : (graded?.sourceIds ?? [])).filter((id) =>
+      SOURCE_IDS.includes(id)
+    );
+
     return {
       id: o.id,
       label: o.label,
-      raised: Boolean(graded?.raised),
-      addressed: Boolean(graded?.addressed),
-      grade: typeof graded?.grade === 'number' ? graded.grade : null,
-      note: graded?.note ?? 'Not reached in this call.',
+      raised,
+      addressed,
+      grade,
+      note: sanitizeMaybe(graded?.note) ?? 'Not reached in this call.',
       escalationTrap: Boolean(o.escalationTrap),
       fromStage: o.fromStage,
+      remediation:
+        needsRemediation && text
+          ? { whatWouldHaveWon: sanitizeProse(text), sources: resolveSources(ids) }
+          : null,
     };
   });
 
@@ -274,32 +371,72 @@ Include an entry in "escalation" only for triggers that actually came up in the 
       ? Math.round((graded.reduce((a, b) => a + b, 0) / graded.length) * 10) / 10
       : null;
 
-  // A bluffed trap is a hard fail regardless of the average, and it is what blocks the
-  // deal from advancing. Derived here rather than trusted to the model.
   const failedEscalation =
     (parsed.escalation ?? []).some((e) => !e.handled) ||
     objections.some((o) => o.escalationTrap && o.raised && (o.grade ?? 5) <= 2);
 
-  // Cap the headline number so it cannot disagree with the gate. A rep who averaged 4.2
-  // and invented a compliance answer has not had a 4.2 call.
+  // Cap the headline number so it cannot disagree with the gate.
   const overallGrade =
     failedEscalation && rawOverallGrade !== null
       ? Math.min(rawOverallGrade, ESCALATION_FAILURE_CAP)
       : rawOverallGrade;
 
+  let qualification: QualificationScore | null = null;
+  if (isSdr && qual) {
+    const q = parsed.qualification;
+    const repVerdict = (['qualify', 'self-serve', 'disqualify'] as const).includes(
+      q?.repVerdict as Verdict
+    )
+      ? (q!.repVerdict as Verdict)
+      : 'none';
+    const repSegment = (['Commercial', 'Enterprise', 'None'] as const).includes(
+      q?.repSegment as Segment
+    )
+      ? (q!.repSegment as Segment)
+      : 'none';
+
+    qualification = {
+      criteria: QUALIFICATION_CRITERIA.map((c) => {
+        const found = q?.criteria?.find((x) => x.id === c.id);
+        return {
+          id: c.id,
+          label: c.label,
+          established: Boolean(found?.established),
+          note: sanitizeMaybe(found?.note) ?? 'Never established on the call.',
+        };
+      }),
+      repVerdict,
+      correctVerdict: qual.correctVerdict,
+      verdictCorrect: repVerdict === qual.correctVerdict,
+      repSegment,
+      correctSegment: qual.correctSegment,
+      segmentCorrect: repSegment === qual.correctSegment,
+      reputationTrap: {
+        avoided: Boolean(q?.reputationTrap?.avoided),
+        note: sanitizeMaybe(q?.reputationTrap?.note) ?? '',
+      },
+      rationale: qual.rationale,
+    };
+  }
+
   const scorecard: Scorecard = {
     personaId: builtIn?.id ?? body.personaId ?? 'custom',
     personaName,
+    mode,
     stage: stage.id,
-    stageLabel: stage.label,
+    stageLabel: isSdr ? 'Qualification' : stage.label,
     objections,
-    escalation: Array.isArray(parsed.escalation) ? parsed.escalation : [],
+    escalation: (Array.isArray(parsed.escalation) ? parsed.escalation : []).map((e) => ({
+      ...e,
+      note: sanitizeMaybe(e.note) ?? '',
+    })),
     talkRatio,
-    closeQuality: parsed.closeQuality ?? { grade: null, note: '' },
-    stageFit: parsed.stageFit ?? { grade: null, note: '' },
-    researchUsage: brief ? (parsed.researchUsage ?? { grade: null, note: '' }) : null,
-    coaching: parsed.coaching ?? '',
-    prospectMemory: parsed.prospectMemory ?? '',
+    closeQuality: sanitizeDimension(parsed.closeQuality),
+    stageFit: isSdr ? null : sanitizeDimension(parsed.stageFit),
+    researchUsage: brief ? sanitizeDimension(parsed.researchUsage) : null,
+    qualification,
+    coaching: sanitizeMaybe(parsed.coaching) ?? '',
+    prospectMemory: sanitizeMaybe(parsed.prospectMemory) ?? '',
     overallGrade,
     rawOverallGrade,
     failedEscalation,

@@ -24,10 +24,18 @@ PERSONAS_DIR = Path(__file__).resolve().parent.parent / "personas"
 #   Olivia - upbeat, friendly British female
 #   Diego  - soothing, gentle Mexican male
 DEFAULT_TTS_MODEL = "inworld/inworld-tts-2"
+
+# Four documented voices across six personas, so they are distinct within a mode rather
+# than globally. A rep never meets an AE persona and an SDR persona in the same session.
 VOICES: dict[str, str] = {
+    # AE mode
     "champion": "Ashley",
     "skeptic": "Edward",
     "commodity-buyer": "Olivia",
+    # SDR mode
+    "inbound-hype": "Edward",
+    "inbound-sleeper": "Olivia",
+    "inbound-enterprise": "Diego",
 }
 FALLBACK_VOICE = "Ashley"
 
@@ -44,6 +52,8 @@ class Persona:
     tier: int
     scouting_report: str
     instructions: str
+    # "ae" works a deal across stages; "sdr" is a single inbound qualification call.
+    mode: str = "ae"
 
     @property
     def voice(self) -> str:
@@ -95,6 +105,7 @@ def _load_one(path: Path) -> Persona:
         tier=tier,
         scouting_report=meta.get("voice_scouting_report", ""),
         instructions=body,
+        mode=meta.get("mode", "ae"),
     )
 
 

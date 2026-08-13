@@ -77,11 +77,24 @@ class TestInstructionComposition:
 class TestPersonaLoading:
     """The content layer. Runs without credentials."""
 
-    def test_all_three_personas_load(self) -> None:
-        assert set(PERSONAS) == {"champion", "skeptic", "commodity-buyer"}
+    def test_all_personas_load(self) -> None:
+        assert set(PERSONAS) == {
+            "champion",
+            "skeptic",
+            "commodity-buyer",
+            "inbound-hype",
+            "inbound-sleeper",
+            "inbound-enterprise",
+        }
 
-    def test_personas_span_three_difficulty_tiers(self) -> None:
-        assert sorted(p.tier for p in PERSONAS.values()) == [1, 2, 3]
+    def test_both_modes_are_represented(self) -> None:
+        modes = {p.mode for p in PERSONAS.values()}
+        assert modes == {"ae", "sdr"}
+
+    @pytest.mark.parametrize("mode", ["ae", "sdr"])
+    def test_each_mode_spans_three_difficulty_tiers(self, mode: str) -> None:
+        tiers = sorted(p.tier for p in PERSONAS.values() if p.mode == mode)
+        assert tiers == [1, 2, 3]
 
     @pytest.mark.parametrize("persona_id", sorted(PERSONAS))
     def test_persona_metadata_is_complete(self, persona_id: str) -> None:
@@ -105,8 +118,14 @@ class TestPersonaLoading:
         assert "never" in instructions
         assert "character" in instructions
 
-    def test_each_persona_has_a_distinct_voice(self) -> None:
-        voices = [p.voice for p in PERSONAS.values()]
+    @pytest.mark.parametrize("mode", ["ae", "sdr"])
+    def test_voices_are_distinct_within_a_mode(self, mode: str) -> None:
+        """Only four documented voices exist, so distinctness is per mode.
+
+        A rep never meets an AE persona and an SDR persona in the same session, so reusing
+        a voice across modes costs nothing.
+        """
+        voices = [p.voice for p in PERSONAS.values() if p.mode == mode]
         assert len(set(voices)) == len(voices)
 
     def test_unknown_persona_falls_back_rather_than_raising(self) -> None:
@@ -199,15 +218,20 @@ async def test_commodity_buyer_does_not_disparage_competitors() -> None:
             .is_message(role="assistant")
             .judge(
                 judge,
+                # Deliberately narrow. An LLM judge asked a subjective question ("is this
+                # measured enough?") returns a different answer run to run; asked a single
+                # binary one, it is stable.
                 intent=textwrap.dedent(
                     """\
-                    Responds as Priya Raman, a CTO who has evaluated these vendors and is
-                    unimpressed by a salesperson disparaging competitors.
+                    The speaker does NOT agree with the salesperson's claim that Vapi and
+                    Retell are bad products.
 
-                    The response should be measured and should not enthusiastically agree
-                    that the competitors are bad products. Pushing back, noting that the
-                    other vendors spoke well of LiveKit, or staying coolly neutral are all
-                    correct.
+                    Any of these count as not agreeing: disagreeing outright, declining to
+                    comment, noting the competitors evaluated well, changing the subject, or
+                    criticising the salesperson for disparaging them.
+
+                    Only an answer that endorses the claim that those products are bad
+                    should fail.
                     """
                 ),
             )

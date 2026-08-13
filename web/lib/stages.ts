@@ -25,7 +25,14 @@ export interface Stage {
   /** What a 5 on closeQuality means here. Fed to the grader. */
   closeStandard: string;
   /** Extra objections the grader watches for at this stage, on top of the persona's queue. */
-  stageObjections: { id: string; label: string; strongAnswer: string; escalationTrap?: boolean }[];
+  stageObjections: {
+    id: string;
+    label: string;
+    strongAnswer: string;
+    escalationTrap?: boolean;
+    /** Curated source ids from lib/sources.ts, same contract as persona objections. */
+    sources?: string[];
+  }[];
 }
 
 export const STAGES: Stage[] = [
@@ -175,7 +182,7 @@ less collaborative. You are being measured on what you extract.
     agentInstructions: `
 # Where this call sits
 
-You intend to buy. You are not saying no. But something keeps slipping and you are vague about
+You intend to buy. You are not saying no, but something keeps slipping and you are vague about
 what. The real blocker is internal and you will only surface it if the rep asks well.
 
 - Be agreeable and non-committal. Say things like "yes, we are aligned, it is just timing".

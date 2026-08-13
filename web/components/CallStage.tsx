@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import PreCallBrief from '@/components/PreCallBrief';
 import type { Campaign } from '@/lib/campaign';
 import type { ProspectView } from '@/lib/prospect';
+import { QUALIFICATION_CRITERIA } from '@/lib/modes';
 import { STAGES, type Stage, type StageId } from '@/lib/stages';
 import type { TranscriptTurn } from '@/lib/types';
 
@@ -155,7 +156,8 @@ export default function CallStage({
 
   const remaining = Math.max(0, sessionSeconds - elapsed);
   const nearlyDone = remaining <= 75;
-  const priorCalls = campaign?.calls ?? [];
+  const isSdr = prospect.mode === 'sdr';
+  const priorCalls = isSdr ? [] : (campaign?.calls ?? []);
   const traps = prospect.objections.filter((o) => o.escalationTrap).length;
 
   if (phase === 'grading') {
@@ -181,11 +183,32 @@ export default function CallStage({
           {prospect.title} · {prospect.company}
         </p>
 
-        {/* Stage picker */}
-        <div className="mt-7">
-          <h2 className="mono text-faint mb-2.5 text-[11px] tracking-widest uppercase">
-            Where in the deal
-          </h2>
+        {/* SDR calls are one conversation, so they get the checklist instead of a stage picker. */}
+        {isSdr ? (
+          <div className="border-border bg-surface mt-7 rounded-xl border p-5">
+            <h2 className="mono text-faint mb-3 text-[11px] tracking-widest uppercase">
+              Leave the call knowing four things
+            </h2>
+            <ul className="space-y-2.5">
+              {QUALIFICATION_CRITERIA.map((c) => (
+                <li key={c.id} className="flex gap-3 text-sm leading-snug">
+                  <span className="text-faint mono mt-0.5 w-16 shrink-0 text-[10px] tracking-wider uppercase">
+                    {c.label}
+                  </span>
+                  <span className="text-muted">{c.question}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-faint mt-4 text-[11px] leading-relaxed">
+              A raise is not a use case, and a job title is not volume. If you find yourself
+              warming up because of the logo, that is the thing being tested.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-7">
+            <h2 className="mono text-faint mb-2.5 text-[11px] tracking-widest uppercase">
+              Where in the deal
+            </h2>
           <div className="flex flex-wrap gap-2">
             {STAGES.map((s) => {
               const active = s.id === stage.id;
@@ -208,11 +231,12 @@ export default function CallStage({
               );
             })}
           </div>
-          <p className="text-muted mt-3 text-sm leading-relaxed">{stage.summary}</p>
-          <p className="text-faint mt-1.5 text-sm leading-relaxed">
-            <span className="text-muted">Your objective:</span> {stage.objective}
-          </p>
-        </div>
+            <p className="text-muted mt-3 text-sm leading-relaxed">{stage.summary}</p>
+            <p className="text-faint mt-1.5 text-sm leading-relaxed">
+              <span className="text-muted">Your objective:</span> {stage.objective}
+            </p>
+          </div>
+        )}
 
         {/* What the prospect remembers */}
         {priorCalls.length > 0 && (
@@ -277,7 +301,7 @@ export default function CallStage({
           onClick={onStart}
           className="bg-accent mt-8 w-full rounded-lg px-6 py-3.5 font-semibold text-black transition-opacity hover:opacity-90 sm:w-auto"
         >
-          {phase === 'error' ? 'Try again' : `Start ${stage.label.toLowerCase()} call`}
+          {phase === 'error' ? 'Try again' : isSdr ? 'Take the call' : `Start ${stage.label.toLowerCase()} call`}
         </button>
         <p className="text-faint mt-3 text-xs">
           Your browser will ask for microphone access. Headphones recommended.
@@ -296,7 +320,7 @@ export default function CallStage({
         <div className="min-w-0">
           <h1 className="truncate text-base font-semibold sm:text-lg">{prospect.name}</h1>
           <p className="text-faint truncate text-xs">
-            {stage.label} · {prospect.company}
+            {isSdr ? 'Inbound' : stage.label} · {prospect.company}
           </p>
         </div>
 

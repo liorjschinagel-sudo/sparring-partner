@@ -7,6 +7,7 @@
  */
 
 import { campaignKey, getCustomProspect } from '@/lib/customProspects';
+import type { ModeId, Qualification } from '@/lib/modes';
 import { type Objection, type PersonaBrief, getPersona } from '@/lib/personas';
 
 export interface ProspectView {
@@ -14,6 +15,9 @@ export interface ProspectView {
   key: string;
   id: string;
   isCustom: boolean;
+  mode: ModeId;
+  /** SDR prospects only. Never shown before the call; it is the answer key. */
+  qualification?: Qualification;
   name: string;
   title: string;
   company: string;
@@ -36,6 +40,8 @@ export function resolveProspect(id: string): ProspectView | null {
       key: campaignKey(builtIn, false),
       id: builtIn.id,
       isCustom: false,
+      mode: builtIn.mode,
+      qualification: builtIn.qualification,
       name: builtIn.name,
       title: builtIn.title,
       company: builtIn.company,
@@ -55,6 +61,9 @@ export function resolveProspect(id: string): ProspectView | null {
     key: campaignKey(custom, true),
     id: custom.id,
     isCustom: true,
+    // Authored prospects are AE-mode: the compiler builds an objection queue, not a
+    // qualification answer key.
+    mode: 'ae',
     name: custom.name,
     title: custom.title,
     company: custom.company,
